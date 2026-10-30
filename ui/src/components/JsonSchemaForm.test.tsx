@@ -876,6 +876,20 @@ describe("JsonSchemaForm arrays of objects", () => {
     expect(entryButtons()[0].textContent).not.toContain("error");
   });
 
+  it("disables the fields of read-only entries", async () => {
+    const readOnly: JsonSchemaNode = {
+      ...schema,
+      properties: { backends: { ...schema.properties!.backends, items: { ...schema.properties!.backends.items!, readOnly: true } } },
+    };
+    await act(async () => {
+      root.render(<JsonSchemaForm schema={readOnly} values={{ backends: [{ id: "" }] }} onChange={() => {}} />);
+    });
+
+    const inputs = Array.from(container.querySelectorAll("input"));
+    expect(inputs.length).toBeGreaterThan(0);
+    expect(inputs.every((input) => input.disabled)).toBe(true);
+  });
+
   it("edits entries of an open-ended item schema as JSON", async () => {
     let values: Record<string, unknown> = { extras: [{ a: 1 }] };
     const openEnded: JsonSchemaNode = {

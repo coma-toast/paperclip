@@ -1098,6 +1098,9 @@ const ArrayField = React.memo(({
     Object.keys(itemSchema.properties ?? {}).length === 0 &&
     itemSchema.additionalProperties !== false;
 
+  // FormField disables a readOnly schema; entries skip FormField, so apply it here.
+  const isItemReadOnly = disabled || itemSchema.readOnly === true;
+
   const renderObjectItem = (item: unknown, index: number) => {
     const isOpen = expanded.has(index);
     const itemLabel = getArrayItemLabel(propSchema, item, index);
@@ -1154,7 +1157,7 @@ const ArrayField = React.memo(({
               <JsonObjectField
                 value={item}
                 onChange={handleItemChange}
-                disabled={disabled}
+                disabled={isItemReadOnly}
                 label={itemLabel}
                 error={errors[itemPath]}
               />
@@ -1162,7 +1165,7 @@ const ArrayField = React.memo(({
               schema={itemSchema}
               values={asRecord(item)}
               onChange={handleItemChange}
-              disabled={disabled}
+              disabled={isItemReadOnly}
               layout="grid"
               errors={Object.fromEntries(
                 Object.entries(errors)

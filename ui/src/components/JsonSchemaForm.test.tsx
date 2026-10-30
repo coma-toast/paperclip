@@ -856,4 +856,55 @@ describe("JsonSchemaForm arrays of objects", () => {
     expect(entryButtons().map((b) => b.getAttribute("aria-expanded"))).toEqual(["false", "false", "true", "false"]);
     expect(container.textContent).toContain("This field is required");
   });
+
+  it("keeps an error mark on an entry the user collapses", async () => {
+    await act(async () => {
+      root.render(
+        <JsonSchemaForm
+          schema={schema}
+          values={{ backends }}
+          errors={{ "/backends/2/id": "This field is required" }}
+          onChange={() => {}}
+        />,
+      );
+    });
+
+    await act(async () => entryButtons()[2].click());
+
+    expect(entryButtons()[2].getAttribute("aria-expanded")).toBe("false");
+    expect(entryButtons()[2].textContent).toContain("1 error");
+    expect(entryButtons()[0].textContent).not.toContain("error");
+  });
+
+  it("edits entries of an open-ended item schema as JSON", async () => {
+    let values: Record<string, unknown> = { extras: [{ a: 1 }] };
+    const openEnded: JsonSchemaNode = {
+      type: "object",
+      properties: { extras: { type: "array", items: { type: "object", additionalProperties: true } } },
+    };
+    const render = () =>
+      root.render(
+        <JsonSchemaForm
+          schema={openEnded}
+          values={values}
+          onChange={(next) => {
+            values = next;
+            render();
+          }}
+        />,
+      );
+    await act(async () => render());
+
+    // No declared properties means no summary, so the entry starts open.
+    expect(entryButtons()[0].getAttribute("aria-expanded")).toBe("true");
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Item 1 JSON"]');
+    expect(textarea).not.toBeNull();
+    expect(container.textContent).not.toContain("No configuration options available");
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, '{"b":2}');
+      textarea!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(values).toEqual({ extras: [{ b: 2 }] });
+  });
 });

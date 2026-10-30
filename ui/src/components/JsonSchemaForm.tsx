@@ -1051,16 +1051,18 @@ const ArrayField = React.memo(({
       : [],
   ));
 
-  // Open any entry that has a validation error so the user can see and fix it.
-  const erroredIndexes = useMemo(() => {
-    const indexes = new Set<number>();
+  // Validation errors per entry index. Open any entry that gets an error so the
+  // user can see and fix it; a collapsed entry with errors stays marked.
+  const errorCounts = useMemo(() => {
+    const counts = new Map<number, number>();
     for (const errPath of Object.keys(errors)) {
       if (!errPath.startsWith(`${path}/`)) continue;
       const index = Number(errPath.slice(path.length + 1).split("/")[0]);
-      if (Number.isInteger(index)) indexes.add(index);
+      if (Number.isInteger(index)) counts.set(index, (counts.get(index) ?? 0) + 1);
     }
-    return [...indexes].sort((a, b) => a - b).join(",");
+    return counts;
   }, [errors, path]);
+  const erroredIndexes = [...errorCounts.keys()].sort((a, b) => a - b).join(",");
   useEffect(() => {
     if (!erroredIndexes) return;
     setExpanded((open) => new Set([...open, ...erroredIndexes.split(",").map(Number)]));
@@ -1090,14 +1092,26 @@ const ArrayField = React.memo(({
     (propSchema.minItems !== undefined &&
       items.length <= (propSchema.minItems as number));
 
+  // An item schema with no declared properties takes any object: edit it as JSON,
+  // as ObjectField does.
+  const hasOpenEndedItems =
+    Object.keys(itemSchema.properties ?? {}).length === 0 &&
+    itemSchema.additionalProperties !== false;
+
   const renderObjectItem = (item: unknown, index: number) => {
     const isOpen = expanded.has(index);
     const itemLabel = getArrayItemLabel(propSchema, item, index);
     const summary = summarizeArrayItem(propSchema, item);
     const itemPath = `${path}/${index}`;
+    const errorCount = errorCounts.get(index) ?? 0;
+    const handleItemChange = (newVal: unknown) => {
+      const newItems = [...items];
+      newItems[index] = newVal;
+      onChange(newItems);
+    };
 
     return (
-      <div key={index} className="rounded-md border">
+      <div key={index} className={cn("rounded-md border", errorCount > 0 && "border-destructive")}>
         <div className="flex items-center gap-1 pr-1">
           <button
             type="button"
@@ -1116,6 +1130,11 @@ const ArrayField = React.memo(({
                 · {summary}
               </span>
             )}
+            {!isOpen && errorCount > 0 && (
+              <span className="ml-auto shrink-0 text-xs font-medium text-destructive">
+                {errorCount === 1 ? "1 error" : `${errorCount} errors`}
+              </span>
+            )}
           </button>
           <Button
             type="button"
@@ -1131,14 +1150,18 @@ const ArrayField = React.memo(({
         </div>
         {isOpen && (
           <div className="border-t px-3 py-3">
-            <JsonSchemaForm
+            {hasOpenEndedItems ? (
+              <JsonObjectField
+                value={item}
+                onChange={handleItemChange}
+                disabled={disabled}
+                label={itemLabel}
+                error={errors[itemPath]}
+              />
+            ) : <JsonSchemaForm
               schema={itemSchema}
               values={asRecord(item)}
-              onChange={(newVal) => {
-                const newItems = [...items];
-                newItems[index] = newVal;
-                onChange(newItems);
-              }}
+              onChange={handleItemChange}
               disabled={disabled}
               layout="grid"
               errors={Object.fromEntries(
@@ -1146,7 +1169,7 @@ const ArrayField = React.memo(({
                   .filter(([errPath]) => errPath.startsWith(`${itemPath}/`))
                   .map(([errPath, err]) => [errPath.slice(itemPath.length), err]),
               )}
-            />
+            />}
           </div>
         )}
       </div>
